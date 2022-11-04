@@ -60,6 +60,13 @@ https://community.atlassian.com/t5/Opsgenie-questions/Error-429-Too-Many-Request
 
 - There is a limitation in Opsgenie API, only return Max 20.000 records. Is a HARD limit described here --> https://community.atlassian.com/t5/Opsgenie-questions/Opsgenie-Alert-API-422-Sum-of-offset-and-limit-should-be-lower/qaq-p/1576684
 
+One can check the number of closed alert using this cli command:  
+```bash
+curl -H "Content-Type:application/json" -H "Authorization:GenieKey <your_api_key>" https://api.eu.opsgenie.com/v2/alerts/count?query=status%3Aclosed
+
+{"data":{"count":2990},"took":0.042,"requestId":"cea530f1-bbc6-45fb-a6c6-dcb52275995f"}
+```
+
 # Licence
 
 Apache

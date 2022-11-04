@@ -11,7 +11,7 @@ import argparse
 opsgenie_api_key = ''
 
 # Time to Sleep.
-nap_time = 30
+nap_time = 10
 
 # Set to 0 the number of items in the list.
 number_of_items_inside_list = 0
@@ -23,9 +23,9 @@ number_of_items_inside_list = 0
   Descr: Small Python code to remove all alerts closed from Opsgenie.
 """
 
-# Waiting 30 seconds for every requests... due a 409 Too Many Requests response from Opsgenie API. # https://docs.opsgenie.com/docs/api-rate-limiting
-def take_a_nap_30_seconds(nap_time):
-  print("Waiting 30 seconds... due a 409 Too Many Requests")
+# Waiting nap_time seconds for every requests... due a 409 Too Many Requests response from Opsgenie API. # https://docs.opsgenie.com/docs/api-rate-limiting
+def take_a_nap_X_seconds(nap_time):
+  print(f"Waiting {nap_time} seconds... due a 409 Too Many Requests limit")
   sleep(nap_time)
 
 # Check the number of alerts closed.
@@ -48,17 +48,11 @@ def create_list_of_ids_opsgenie(get_list_alerts_opsgenie_response):
   return list_of_ids
 
 # We are going to READ one by one the LIST that we created before with all IDs and DELETE it.
-def delete_alerts_opsgenie(create_list_of_ids_opsgenie_response, headers, region_to_use):
-  if region_to_use == 'EU':
-    for id in create_list_of_ids_opsgenie_response:
-      print(id)
-      deleting_id = requests.delete(f'https://api.eu.opsgenie.com/v2/alerts/{(id)}?identifierType=id', headers=headers)
-      print(deleting_id.text)
-  else:
-    for id in create_list_of_ids_opsgenie_response:
-      print(id)
-      deleting_id = requests.delete(f'https://api.opsgenie.com/v2/alerts/{(id)}?identifierType=id', headers=headers)
-      print(deleting_id.text)
+def delete_alerts_opsgenie(create_list_of_ids_opsgenie_response, headers, api_url):
+  for id in create_list_of_ids_opsgenie_response:
+    print(id)
+    deleting_id = requests.delete(f'https://{api_url}/v2/alerts/{(id)}?identifierType=id', headers=headers)
+    print(deleting_id.text)
 
 
 ####################################
@@ -72,30 +66,39 @@ parser.add_argument("-r", "--region", dest='region', required=True, help="Choose
 args = parser.parse_args()
 
 # Define URL to later do a request type GET. There is a limitation from the Opsgenie API. Is limited to return only max 100 alerts --> https://docs.opsgenie.com/docs/alert-api#list-alerts
+region_to_use = args.region
 
-# EU
-if args.region == 'EU':
-  opsgenie_query_list_all_alerts_closed = 'https://api.eu.opsgenie.com/v2/alerts?query=status%3Aclosed&limit=100&order=asc' # https://www.w3schools.com/tags/ref_urlencode.asp  (%3A)
-  opsgenie_query_get_number_of_alerts_closed = 'https://api.eu.opsgenie.com/v2/alerts/count?query=status%3Aclosed' #  (%3A)
-  region_to_use = args.region
+if region_to_use == 'EU':
+  # EU
+  api_url = 'api.eu.opsgenie.com'
+
   print("------------------------------------------------------------------------------------------------------------------------------------")
-  print("You selected EU region, using URLs")
+  print(f"You selected EU region, using URLs: {api_url}")
   print("------------------------------------------------------------------------------------------------------------------------------------")
 else:
-  # GLOBAL.
-  opsgenie_query_list_all_alerts_closed = 'https://api.opsgenie.com/v2/alerts?query=status%3Aclosed&limit=100&order=asc' # https://www.w3schools.com/tags/ref_urlencode.asp  (%3A)
-  opsgenie_query_get_number_of_alerts_closed = 'https://api.opsgenie.com/v2/alerts/count?query=status%3Aclosed' #  (%3A)
-  region_to_use = args.region
+  # GLOBAL
+  api_url = 'api.opsgenie.com'
+
   print("------------------------------------------------------------------------------------------------------------------------------------")
-  print("You selected GLOBAL region, using URLs")
+  print(f"You selected GLOBAL region, using URLs: {api_url}")
   print("------------------------------------------------------------------------------------------------------------------------------------")
 
+#TODO We can use a parameter for the query if we want to filter out some alert to keep...
+
+# Getting All Closed Alerts:
+# opsgenie_query_list_all_alerts_closed = 'https://api.eu.opsgenie.com/v2/alerts?query=status%3Aclosed&limit=100&order=asc' # https://www.w3schools.com/tags/ref_urlencode.asp  (%3A)
+# opsgenie_query_get_number_of_alerts_closed = 'https://api.eu.opsgenie.com/v2/alerts/count?query=status%3Aclosed' #  (%3A)
+
+# Using Search query params: https://support.atlassian.com/opsgenie/docs/search-queries-for-alerts/
+# Getting only non PROD nor CIE alerts:
+opsgenie_query_list_all_alerts_closed = 'https://' + api_url + '/v2/alerts?query=status%3Aclosed%20AND%20NOT%20alias%3A%28*prod*%20OR%20*cie*%29&limit=100&order=asc' # https://www.w3schools.com/tags/ref_urlencode.asp  (%3A) (%20) (%28 and %29)
+opsgenie_query_get_number_of_alerts_closed = 'https://' + api_url + '/v2/alerts/count?query=status%3Aclosed%20AND%20NOT%20alias%3A%28*prod*%20OR%20*cie*%29' #  (%3A) (%20) (%28 and %29)
 
 # Define Opsgenie Api Key variable.
 opsgenie_api_key = args.key
-print("------------------------------------------------------------------------------------------------------------------------------------")
-print(f"You set the following api-key --> {opsgenie_api_key}")
-print("------------------------------------------------------------------------------------------------------------------------------------")
+# print("------------------------------------------------------------------------------------------------------------------------------------")
+# print(f"You set the following api-key --> {opsgenie_api_key}")
+# print("------------------------------------------------------------------------------------------------------------------------------------")
 
 # HTTPS HEADERS.
 headers = {
@@ -110,8 +113,8 @@ try:
   print(f"You have {(get_number_alerts_opsgenie_response['data']['count'])} closed alerts")
   print("------------------------------------------------------------------------------------------------------------------------------------")
 
-  # Waiting 30 seconds for every requests... due a 409 Too Many Requests response from Opsgenie API. # https://docs.opsgenie.com/docs/api-rate-limiting
-  take_a_nap_30_seconds(nap_time)
+  # Waiting nap_time seconds for every requests... due a 409 Too Many Requests response from Opsgenie API. # https://docs.opsgenie.com/docs/api-rate-limiting
+  take_a_nap_X_seconds(nap_time)
   print("------------------------------------------------------------------------------------------------------------------------------------")
   print("INFO --> https://community.atlassian.com/t5/Opsgenie-questions/Error-429-Too-Many-Requests-to-Opsgenie-Integration-API/qaq-p/1966186")
   print("------------------------------------------------------------------------------------------------------------------------------------")
@@ -136,7 +139,7 @@ nextUrl = get_list_alerts_opsgenie_response.headers.get("X-Paging-Next", None)
 # While nextUrl variable exists and it has the header called "X-Paging-Next". If is "None" only delete this first 100 alerts.
 while nextUrl is not None:
   while number_of_items_inside_list < 19900 and nextUrl is not None:
-    take_a_nap_30_seconds(nap_time)
+    take_a_nap_X_seconds(nap_time)
     get_list_alerts_opsgenie_response = get_list_alerts_opsgenie(nextUrl, headers)
 
     # += adds another value with the variable's value and assigns the new value to the variable --> https://stackoverflow.com/questions/4841436/what-exactly-does-do
@@ -172,4 +175,4 @@ with open('all_ids_backup_temp.txt', 'a') as f:
 # with open('all_ids_backup_temp.txt') as fp:
 #   items = fp.readlines()
 #   for item in items:
-#     delete_alerts_opsgenie([item], headers, region_to_use)
+#     delete_alerts_opsgenie([item], headers, api_url)
